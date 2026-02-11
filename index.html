@@ -1,0 +1,208 @@
+
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>دستیار مستندساز رایان هم‌افزا</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%238b5cf6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='4' width='16' height='16' rx='2'/%3E%3Crect x='9' y='9' width='6' height='6'/%3E%3Cpath d='M15 2v2'/%3E%3Cpath d='M15 20v2'/%3E%3Cpath d='M2 15h2'/%3E%3Cpath d='M2 9h2'/%3E%3Cpath d='M20 15h2'/%3E%3Cpath d='M20 9h2'/%3E%3Cpath d='M9 2v2'/%3E%3Cpath d='M9 20v2'/%3E%3C/svg%3E" />
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@100..900&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                50: '#f5f3ff',
+                100: '#ede9fe',
+                200: '#ddd6fe',
+                300: '#c4b5fd',
+                400: '#a78bfa',
+                500: '#8b5cf6', // Primary Purple
+                600: '#7c3aed', // Darker Purple
+                700: '#6d28d9',
+                800: '#5b21b6',
+                900: '#4c1d95',
+              },
+              accent: {
+                pink: '#F472B6',
+                orange: '#FB923C',
+                blue: '#38BDF8'
+              }
+            },
+            fontFamily: {
+              sans: ['Vazirmatn', 'sans-serif'],
+            },
+            boxShadow: {
+              'soft': '0 4px 30px rgba(0, 0, 0, 0.03)',
+              'card': '0 0 0 1px rgba(255,255,255,0.5), 0 4px 12px rgba(0,0,0,0.05)',
+              'glow': '0 0 20px rgba(124, 58, 237, 0.25)',
+              'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.07)',
+            },
+            borderRadius: {
+              '3xl': '1.5rem',
+              '4xl': '2rem',
+            },
+            animation: {
+              'blob': 'blob 7s infinite',
+            },
+            keyframes: {
+              blob: {
+                '0%': { transform: 'translate(0px, 0px) scale(1)' },
+                '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+                '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+                '100%': { transform: 'translate(0px, 0px) scale(1)' },
+              },
+            },
+          },
+        },
+      }
+    </script>
+    <style>
+      body {
+        font-family: 'Vazirmatn', sans-serif;
+        background-color: #F8FAFC; 
+      }
+      
+      /* Modern Custom Scrollbar */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: rgba(0,0,0,0.02); 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1; 
+        border-radius: 99px;
+        border: 2px solid transparent;
+        background-clip: content-box;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8; 
+        border: 2px solid transparent;
+        background-clip: content-box;
+      }
+      
+      /* New File Header Styling */
+      .file-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        direction: ltr; 
+        width: 100%;
+        padding: 1rem;
+        box-sizing: border-box;
+        background: linear-gradient(to right, #f8fafc, #fff);
+        border-radius: 12px;
+        border: 1px solid #f1f5f9;
+        margin-bottom: 1rem;
+      }
+      .file-info-group {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        overflow: hidden;
+      }
+      .file-icon {
+        flex-shrink: 0;
+        background: #fff;
+        color: #7c3aed;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 10px;
+        font-size: 16px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        border: 1px solid #f1f5f9;
+      }
+      .file-name {
+        font-weight: 700;
+        color: #1e293b;
+        font-family: monospace;
+        font-size: 0.95rem;
+      }
+      .file-path {
+        color: #94a3b8;
+        font-size: 0.8em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 300px;
+      }
+      .file-size {
+        color: #64748b;
+        font-size: 0.75em;
+        font-family: monospace;
+        flex-shrink: 0;
+        background: #f1f5f9;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-weight: 600;
+      }
+
+      /* Markdown Content Enhancements */
+      .prose h1, .prose h2, .prose h3 {
+        color: #1e293b;
+      }
+      .prose blockquote {
+        border-right: 4px solid #8b5cf6;
+        background: #f5f3ff;
+        padding: 1rem;
+        border-radius: 8px;
+        font-style: normal;
+        color: #5b21b6;
+      }
+      .prose table {
+        border-radius: 8px;
+        overflow: hidden;
+        border-collapse: separate;
+        border-spacing: 0;
+        border: 1px solid #e2e8f0;
+        width: 100%;
+      }
+      .prose th {
+        background: #f8fafc;
+        padding: 12px;
+        text-align: right;
+        font-size: 0.9em;
+      }
+      .prose td {
+        padding: 12px;
+        border-top: 1px solid #e2e8f0;
+        font-size: 0.9em;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.2.0",
+    "react/": "https://esm.sh/react@18.2.0/",
+    "react-dom": "https://esm.sh/react-dom@18.2.0",
+    "react-dom/": "https://esm.sh/react-dom@18.2.0/",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+    "lucide-react": "https://esm.sh/lucide-react@0.460.0?external=react",
+    "mermaid": "https://esm.sh/mermaid@10.9.1",
+    "react-markdown": "https://esm.sh/react-markdown@9.0.1?external=react",
+    "remark-gfm": "https://esm.sh/remark-gfm@4.0.0",
+    "rehype-raw": "https://esm.sh/rehype-raw@7.0.0",
+    "acorn": "https://esm.sh/acorn@8.11.3",
+    "acorn-walk": "https://esm.sh/acorn-walk@8.3.2",
+    "idb": "https://esm.sh/idb@8.0.0",
+    "react-force-graph-2d": "https://esm.sh/react-force-graph-2d@1.25.5?external=react,react-dom",
+    "three": "https://esm.sh/three@0.160.0",
+    "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.16?external=react,react-dom,three",
+    "@react-three/drei": "https://esm.sh/@react-three/drei@9.99.0?external=react,react-dom,three,@react-three/fiber"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="text-slate-800 antialiased font-sans bg-slate-50">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
