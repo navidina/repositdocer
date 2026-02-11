@@ -25,3 +25,29 @@ export const generateEmbeddings = async (text: string): Promise<number[]> => {
     return [];
   }
 };
+
+export const generateCompletion = async (prompt: string, model: string = 'qwen2.5-coder:32b-instruct'): Promise<string> => {
+  try {
+    // Note: 'generate' endpoint is usually for raw completion, 'chat' for chat.
+    // The prompt implies a single turn completion, so 'generate' is fine,
+    // but often chat models work better with /api/chat.
+    // However, following the instruction to use /api/generate.
+
+    // Check if model name needs adjustment or env var override
+    const targetModel = process.env.OLLAMA_MODEL || model;
+
+    const response = await axios.post(`${OLLAMA_URL}/api/generate`, {
+      model: targetModel,
+      prompt: prompt,
+      stream: false,
+    });
+
+    if (response.data && response.data.response) {
+      return response.data.response;
+    }
+    return "";
+  } catch (error) {
+    console.error('Error in generateCompletion:', error);
+    throw error;
+  }
+};

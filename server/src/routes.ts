@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { indexDocuments, updateProjectDocs } from './controllers/scanController';
 import { searchDocuments } from './controllers/searchController';
 import { getProjectDocs } from './controllers/docsController';
+import { askQuestion } from './controllers/integrationController';
+import { apiKeyAuth } from './middlewares/auth';
 
 const router = Router();
 
@@ -13,7 +15,7 @@ router.post('/rag/search', searchDocuments);
 router.post('/projects/:id/docs', updateProjectDocs);
 router.get('/projects/:id/docs', getProjectDocs);
 
-// Optional: Combined scan endpoint if needed (as per prompt description)
-// router.post('/projects/scan', scanProject);
+// Integration API (Protected)
+router.post('/v1/ask', apiKeyAuth, askQuestion);
 
 export default router;
