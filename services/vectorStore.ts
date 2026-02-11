@@ -17,22 +17,32 @@ export class CentralVectorStore {
 
   /**
    * Adds processed files to the central database.
-   * The backend handles chunking and embedding generation.
+   * Sends files in batches to avoid payload limits and server timeouts.
    */
   async addDocuments(projectId: string, files: ProcessedFile[], onProgress?: (current: number, total: number) => void): Promise<void> {
     try {
-      const response = await fetch(`${this.apiUrl}/vectors/index`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, documents: files })
-      });
+      const BATCH_SIZE = 20; // Send 20 files at a time
+      let processedCount = 0;
 
-      if (!response.ok) {
-        throw new Error(`Failed to index documents: ${response.statusText}`);
+      for (let i = 0; i < files.length; i += BATCH_SIZE) {
+        const batch = files.slice(i, i + BATCH_SIZE);
+
+        // Ensure metadata is serializable and not too large if needed, though processedFile structure is usually fine.
+        // We send the raw content here. The backend handles chunking and embedding.
+
+        const response = await fetch(`${this.apiUrl}/vectors/index`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectId, documents: batch })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to index batch ${i}: ${response.statusText}`);
+        }
+
+        processedCount += batch.length;
+        if (onProgress) onProgress(processedCount, files.length);
       }
-
-      // Backend handles it in one go, but we can simulate progress or just callback done.
-      if (onProgress) onProgress(files.length, files.length);
 
     } catch (error) {
       console.error('Error adding documents to central store:', error);
@@ -56,7 +66,7 @@ export class CentralVectorStore {
       }
 
       const results = await response.json();
-      
+
       // Map backend results to VectorDocument format
       // Backend returns rows: { id, content, metadata, score }
       return results.map((row: any) => ({
@@ -73,8 +83,4 @@ export class CentralVectorStore {
   }
 }
 
-// Export as LocalVectorStore for compatibility if needed, or update usages.
-// Since we are refactoring, we export the new class.
-// But we might want to keep the name LocalVectorStore alias temporarily to avoid breaking everything immediately if we were doing incremental.
-// But I will update usages.
 export { CentralVectorStore as LocalVectorStore };
