@@ -67,8 +67,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ config, setConfig }) => {
             <Server className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-slate-800">اتصال به Ollama Server</h3>
-            <p className="text-sm text-slate-400">تنظیمات سرور شبکه (IP: 192.168.1.100)</p>
+            <h3 className="text-lg font-bold text-slate-800">اتصال به LM Studio</h3>
+            <p className="text-sm text-slate-400">تنظیمات سرور شبکه (IP: 192.168.167.18)</p>
           </div>
         </div>
 
@@ -81,7 +81,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ config, setConfig }) => {
                 value={config.baseUrl} 
                 onChange={(e) => setConfig({...config, baseUrl: e.target.value})}
                 className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-slate-600 font-mono text-left dir-ltr focus:ring-2 focus:ring-brand-200 focus:border-brand-300 transition-all outline-none"
-                placeholder="e.g., http://192.168.1.100:11434"
+                placeholder="e.g., http://192.168.167.18:1234"
               />
               <div className="absolute right-3 top-3 bg-white px-2 py-1 rounded-lg border border-slate-100 shadow-sm text-[10px] font-bold text-slate-400">Required</div>
             </div>

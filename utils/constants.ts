@@ -62,7 +62,7 @@ export const CONFIG_FILES = new Set([
 // Updated for LM Studio on specific IP
 export const DEFAULT_MODEL = 'qwen2.5-coder-32b-instruct'; // Or "local-model" if generic
 export const DEFAULT_EMBEDDING_MODEL = 'text-embedding-nomic-embed-text-v1.5';
-export const OLLAMA_DEFAULT_URL = 'http://192.168.1.100:11434';
+export const OLLAMA_DEFAULT_URL = 'http://192.168.167.18:1234';
 
 export const ARCH_RULES = [
   {

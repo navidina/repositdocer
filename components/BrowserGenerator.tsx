@@ -432,15 +432,14 @@ const BrowserGenerator: React.FC<BrowserGeneratorProps> = ({ config }) => {
   const vectorStoreRef = useRef<LocalVectorStore | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
-  const { logs, isProcessing, error, dismissError, progress, generatedDoc, hasContext, processRepository, stats, knowledgeGraph, docParts, businessRules, archViolations, zombieFiles, currentFile, saveManualOverride, fileMap, reanalyzeFile, importSession, projectId } = useRepoProcessor();
+  const { logs, isProcessing, error, dismissError, progress, generatedDoc, hasContext, processRepository, stats, knowledgeGraph, docParts, businessRules, archViolations, zombieFiles, currentFile, saveManualOverride, fileMap, reanalyzeFile, importSession } = useRepoProcessor();
   
   const { chatMessages, chatInput, setChatInput, isChatLoading, isRetrieving, handleSendMessage } = useChat(
       config, 
       vectorStoreRef, 
       hasContext, 
       knowledgeGraph, 
-      docParts,
-      projectId
+      docParts
   );
 
   useEffect(() => {

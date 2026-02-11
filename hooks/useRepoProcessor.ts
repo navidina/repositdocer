@@ -5,7 +5,7 @@ import { IGNORED_DIRS, IGNORED_FILENAMES, ALLOWED_EXTENSIONS, CONFIG_FILES, LANG
 import { checkOllamaConnection, generateCompletion } from '../services/ollamaService';
 import { extractFileMetadata, buildGraph, generateContentHash } from '../services/codeParser';
 import { LocalVectorStore } from '../services/vectorStore';
-import { getFileMetadata, saveFileMetadata, saveProjectSession, getProjectSession } from '../services/cacheService';
+import { getFileMetadata, saveFileMetadata } from '../services/cacheService';
 import { generateFileHeaderHTML, extractMermaidCode } from '../utils/markdownHelpers';
 import { fetchGithubRepoTree, fetchGithubFileContent, parseGithubUrl } from '../services/githubService';
 
@@ -42,7 +42,6 @@ const optimizePackageJson = (content: string): string => {
 };
 
 export const useRepoProcessor = () => {
-  const [projectId, setProjectId] = useState<string>('');
   const [logs, setLogs] = useState<ProcessingLog[]>([]);
   const [generatedDoc, setGeneratedDoc] = useState<string>('');
   const [docParts, setDocParts] = useState<Record<string, string>>({}); 
@@ -61,70 +60,41 @@ export const useRepoProcessor = () => {
   const [progress, setProgress] = useState(0);
   const [hasContext, setHasContext] = useState(false);
 
-  // Initial Load from Server (or fallback to local session if no ID)
   useEffect(() => {
-    const loadSession = async () => {
-        const params = new URLSearchParams(window.location.search);
-        const pid = params.get('project');
-
-        if (pid) {
-            setProjectId(pid);
-            addLog(`Loading project ${pid} from server...`, 'info');
-            try {
-                const data = await getProjectSession(pid);
-                if (data) {
-                    if (data.logs) setLogs(data.logs); // Note: Logs might be stringified if from DB
-                    if (data.doc_parts) setDocParts(data.doc_parts); // DB field is snake_case usually, check naming
-                    // The backend stores JSONB. If node-postgres returns objects, keys match DB.
-                    // My backend controller: `JSON.stringify(docParts)` -> stored as jsonb.
-                    // pg returns it as object. Keys inside JSON are preserved.
-                    // However, `updateProjectDocs` sends `docParts`.
-                    // The table column is `doc_parts`.
-                    // `getProjectDocs` returns `doc_parts`.
-                    // So we map `data.doc_parts` to `setDocParts`.
-                    if (data.doc_parts) setDocParts(data.doc_parts);
-                    if (data.stats) setStats(data.stats);
-                    if (data.knowledge_graph) setKnowledgeGraph(data.knowledge_graph);
-
-                    // Metadata might contain businessRules etc if we stored them there
-                    if (data.metadata) {
-                         if (data.metadata.businessRules) setBusinessRules(data.metadata.businessRules);
-                         if (data.metadata.archViolations) setArchViolations(data.metadata.archViolations);
-                         if (data.metadata.zombieFiles) setZombieFiles(data.metadata.zombieFiles);
-                         if (data.metadata.fileMap) setFileMap(data.metadata.fileMap);
-                    }
-
-                    setHasContext(true);
-                    addLog('Project loaded successfully from server.', 'success');
-                } else {
-                    addLog('Project not found on server.', 'warning');
-                }
-            } catch (e) {
-                console.error("Failed to load project", e);
-                addLog('Failed to connect to server.', 'error');
-            }
-        } else {
-             // Fallback: Check LocalStorage for dev convenience (optional, mostly removed per prompt)
-             // But prompt says "Dashboard loads from database".
-             // We can keep local storage as a cache or just skip it.
-             // I'll keep it for now if URL param is missing, to not break existing workflow completely for local-only users who haven't set up backend yet?
-             // But user says "Convert to Client-Server". So I should prefer server.
-             try {
-                const saved = localStorage.getItem(STORAGE_KEY);
-                if (saved) {
-                    const data = JSON.parse(saved);
-                    // Load local data...
-                    if (data.docParts) setDocParts(data.docParts);
-                    if (data.knowledgeGraph) setKnowledgeGraph(data.knowledgeGraph);
-                    setHasContext(true);
-                    // generate a dummy PID if needed or leave empty
-                    setProjectId('local-session');
-                }
-             } catch {}
+    try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            const data = JSON.parse(saved);
+            if (data.logs) setLogs(data.logs);
+            if (data.generatedDoc) setGeneratedDoc(data.generatedDoc);
+            if (data.docParts) setDocParts(data.docParts);
+            if (data.stats) setStats(data.stats);
+            if (data.knowledgeGraph) setKnowledgeGraph(data.knowledgeGraph);
+            if (data.businessRules) setBusinessRules(data.businessRules);
+            if (data.archViolations) setArchViolations(data.archViolations);
+            if (data.zombieFiles) setZombieFiles(data.zombieFiles);
+            setHasContext(!!data.generatedDoc);
+            if (data.fileMap) setFileMap(data.fileMap);
         }
-    };
-    loadSession();
+        const overrides = localStorage.getItem(OVERRIDES_KEY);
+        if (overrides) {
+            setManualOverrides(JSON.parse(overrides));
+        }
+    } catch (e) { console.error('Load session failed', e); }
   }, []);
+
+  useEffect(() => {
+    if (generatedDoc || Object.keys(docParts).length > 0) {
+        try {
+            const sessionData = {
+                logs, generatedDoc, docParts, stats, knowledgeGraph, businessRules, archViolations, zombieFiles,
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(sessionData));
+        } catch (e) {
+            console.warn('LocalStorage full, could not auto-save session state.', e);
+        }
+    }
+  }, [generatedDoc, docParts, logs, stats, knowledgeGraph, businessRules, archViolations, zombieFiles]);
 
   const addLog = (message: string, type: 'info' | 'success' | 'error' | 'warning' = 'info') => {
     setLogs(prev => [...prev, { timestamp: new Date().toISOString(), message, type }]);
@@ -138,33 +108,34 @@ export const useRepoProcessor = () => {
       localStorage.setItem(OVERRIDES_KEY, JSON.stringify(newOverrides));
       setDocParts(prev => ({ ...prev, [sectionId]: content }));
       addLog(`Manual edit saved for section: ${sectionId}`, 'success');
-
-      // Auto-save to server if projectId exists
-      if (projectId) {
-          saveProjectSession(projectId, {
-              docParts: { ...docParts, [sectionId]: content },
-              metadata: {
-                  businessRules, archViolations, zombieFiles, fileMap
-              },
-              knowledgeGraph,
-              stats,
-              logs
-          }).catch(e => console.warn("Auto-save failed", e));
-      }
   };
 
   const importSession = useCallback((data: any) => {
-      // Implementation for importing JSON file (client-side feature)
-      // Can be kept as is, but maybe also sync to server
       if (!data) return;
       try {
+          if (data.logs) setLogs(data.logs);
+          if (data.generatedDoc) setGeneratedDoc(data.generatedDoc);
           if (data.docParts) setDocParts(data.docParts);
+          if (data.stats) setStats(data.stats);
           if (data.knowledgeGraph) setKnowledgeGraph(data.knowledgeGraph);
+          if (data.businessRules) setBusinessRules(data.businessRules);
+          if (data.archViolations) setArchViolations(data.archViolations);
+          if (data.zombieFiles) setZombieFiles(data.zombieFiles);
+          if (data.fileMap) setFileMap(data.fileMap);
+          if (data.manualOverrides) {
+              setManualOverrides(data.manualOverrides);
+              localStorage.setItem(OVERRIDES_KEY, JSON.stringify(data.manualOverrides));
+          }
           setHasContext(true);
-          // ...
-          addLog("Session imported.", "success");
+          try {
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+          } catch (e) {
+              console.warn("Could not save imported session to LocalStorage.");
+          }
+          addLog("Session imported successfully.", "success");
       } catch (e) {
-          setError("Import failed.");
+          console.error("Import failed", e);
+          setError("Failed to import session data. Invalid file format.");
       }
   }, []);
 
@@ -177,8 +148,8 @@ export const useRepoProcessor = () => {
          const analysis = await generateCompletion(config, prompt, config.persona || 'You are a Senior Developer.');
          const header = generateFileHeaderHTML(filePath, file.lines);
          const newContent = `${header}\n\n${analysis}`;
-         // Logic to update state...
-         alert("Re-analysis complete.");
+         // Note: This logic only notifies for now, real implementation would update the specific part in docParts.code
+         alert("Re-analysis complete. (Note: The main view requires a refresh logic to show partial updates).");
      } catch(e) {
          addLog(`Re-analysis failed: ${e}`, 'error');
      }
@@ -191,30 +162,14 @@ export const useRepoProcessor = () => {
     setError(null);
     setFileMap({}); 
 
-    // Generate Project ID
-    let pid = 'project-' + Date.now();
-    if (inputType === 'github') {
-         const repoInfo = parseGithubUrl(githubUrl);
-         if (repoInfo) pid = `${repoInfo.owner}-${repoInfo.repo}`.toLowerCase();
-    } else if (files && files.length > 0) {
-         const folderName = files[0].webkitRelativePath.split('/')[0] || 'local';
-         pid = `${folderName}-${Date.now()}`.replace(/\s+/g, '-').toLowerCase();
-    }
-    setProjectId(pid);
-
-    // Update URL without reload to shareable link
-    const newUrl = new URL(window.location.href);
-    newUrl.searchParams.set('project', pid);
-    window.history.pushState({}, '', newUrl);
-
     try {
       if (!config.model) throw new Error("Please configure a model in Settings first.");
       const isConnected = await checkOllamaConnection(config);
       if (!isConnected) throw new Error(`Cannot connect to LM Studio at ${config.baseUrl}`);
 
-      addLog(`Connected to ${config.baseUrl}. Starting analysis for ${pid}...`, 'info');
+      addLog(`Connected to ${config.baseUrl}. Starting analysis...`, 'info');
 
-      // 1. COLLECT FILES (Same as before)
+      // 1. COLLECT FILES
       const processedFiles: ProcessedFile[] = [];
       const statsMap: Record<string, number> = {};
 
@@ -282,6 +237,7 @@ export const useRepoProcessor = () => {
           
           const metadata = await extractFileMetadata(file.content, file.path);
           
+          // Smart Audit
           const issues: CodeIssue[] = [];
           if (file.content.includes('dangerouslySetInnerHTML')) {
               issues.push({ id: `sec-${i}`, filePath: file.path, line: 0, category: 'security', severity: 'high', title: 'Unsafe HTML Injection', description: 'Usage of dangerouslySetInnerHTML.', suggestion: 'Sanitize input.' });
@@ -305,25 +261,20 @@ export const useRepoProcessor = () => {
       const violations = processedFiles.flatMap(f => f.metadata.archViolations);
       setArchViolations(violations);
 
-      // 4. VECTOR INDEXING (UPDATED FOR BACKEND)
+      // 4. VECTOR INDEXING
       if (!vectorStoreRef.current) vectorStoreRef.current = new LocalVectorStore(config);
-      addLog('Indexing vectors on server...', 'info');
-      // PASS PROJECT ID to new VectorStore
-      await vectorStoreRef.current.addDocuments(pid, processedFiles);
+      addLog('Indexing vectors...', 'info');
+      vectorStoreRef.current.addDocuments(processedFiles);
 
-      // 5. GENERATE MODULES (Same as before)
+      // 5. GENERATE MODULES
+      // We use independent try-catch blocks for each module to prevent cascading failures.
+
       const configFileContent = processedFiles.filter(f => CONFIG_FILES.has(f.path.split('/').pop()!))
           .map(f => `File: ${f.path}\n${f.path.endsWith('json') ? optimizePackageJson(f.content) : f.content.substring(0, 1000)}`)
           .join('\n\n');
       
       const fileTree = processedFiles.map(f => f.path).join('\n');
-      const allSourceContext = processedFiles.slice(0, 50).map(f => `File: ${f.path}\n${f.content.substring(0, 500)}`).join('\n\n');
-
-      // (Modules generation logic skipped for brevity - assumes same structure as before, just filling docParts)
-      // I will copy the previous logic exactly, just wrapping it in Try/Catch blocks as before
-
-      // ... [Truncated: Imagine all the generateCompletion calls here] ...
-      // For this tool update, I need to ensure I don't delete the logic. I will restore it.
+      const allSourceContext = processedFiles.slice(0, 50).map(f => `File: ${f.path}\n${f.content.substring(0, 500)}`).join('\n\n'); // Summary context
 
       // --- MODULE 1: ROOT ---
       if (docLevels.root) {
@@ -438,6 +389,7 @@ export const useRepoProcessor = () => {
           addLog(`Generating Deep Code Analysis for ${codeFiles.length} files...`, 'info');
           let accumulatedCodeDocs = '';
 
+          // Helper to process a single file
           const processFile = async (file: ProcessedFile) => {
               const header = generateFileHeaderHTML(file.path, file.lines);
               const prompt = `${PROMPT_LEVEL_2_CODE}\n\nFile: ${file.path}\nCode:\n\`\`\`\n${file.content}\n\`\`\``;
@@ -448,11 +400,13 @@ export const useRepoProcessor = () => {
           for (let i = 0; i < codeFiles.length; i++) {
               const file = codeFiles[i];
               setCurrentFile(`Analyzing file ${i+1}/${codeFiles.length}: ${file.path.split('/').pop()}`);
+
               try {
                   const res = await processFile(file);
                   accumulatedCodeDocs += res;
                   setDocParts(prev => ({ ...prev, code: accumulatedCodeDocs }));
               } catch (e) {
+                  console.error(`Failed to analyze ${file.path}`, e);
                   accumulatedCodeDocs += `## ${file.path}\n\n*Analysis Failed (Timeout/Error)*\n\n---\n\n`;
                   setDocParts(prev => ({ ...prev, code: accumulatedCodeDocs }));
               }
@@ -465,28 +419,6 @@ export const useRepoProcessor = () => {
       setProgress(100);
       addLog('Documentation generation complete!', 'success');
 
-      // FINAL SYNC TO SERVER
-      addLog('Saving session to server...', 'info');
-      try {
-          // We need to pass the *current* state. But setDocParts uses prev state in loop.
-          // Since React state updates are async, we might not have the full code docs here immediately if we just set it?
-          // Actually, we awaited generateCompletion, so state update happens, but the 'docParts' variable in this scope is stale.
-          // However, we can construct the final object.
-          // `accumulatedCodeDocs` holds the full code docs.
-          // For other parts, we set them earlier. They might be stale too.
-          // Best way is to use a mutable local variable `currentDocParts` to track progress and send that.
-          // But `setDocParts` updates the UI.
-          // I will use `setDocParts` with a callback, but also keep a local merged object for saving.
-          // Or just save what we have. Since we update `docParts` piece by piece.
-          // A clean solution: `useEffect` watches `generatedDoc`. When it becomes 'Complete', trigger save.
-          // But `useEffect` handles auto-save to localStorage.
-          // I can trigger `saveProjectSession` here with what we think we have?
-          // Or just use the `useEffect` on `generatedDoc` to save to server too?
-          // Yes, I'll update the `useEffect` that watches state to also save to server if projectId is set.
-      } catch (e) {
-          console.error("Save failed", e);
-      }
-
     } catch (e: any) {
       console.error(e);
       setError(e.message || "An unexpected error occurred.");
@@ -497,36 +429,7 @@ export const useRepoProcessor = () => {
     }
   };
 
-  // Update the auto-save effect
-  useEffect(() => {
-    if (generatedDoc || Object.keys(docParts).length > 0) {
-        // Local save
-        try {
-            const sessionData = {
-                logs, generatedDoc, docParts, stats, knowledgeGraph, businessRules, archViolations, zombieFiles,
-            };
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(sessionData));
-
-            // Server save (debounce ideally, but here we just do it)
-            if (projectId) {
-                saveProjectSession(projectId, {
-                    docParts,
-                    metadata: {
-                        businessRules, archViolations, zombieFiles, fileMap
-                    },
-                    knowledgeGraph,
-                    stats,
-                    logs
-                }).catch(e => console.warn("Background save failed", e));
-            }
-        } catch (e) {
-            console.warn('Auto-save failed.', e);
-        }
-    }
-  }, [generatedDoc, docParts, logs, stats, knowledgeGraph, businessRules, archViolations, zombieFiles, projectId]);
-
   return {
-    projectId, // Added
     logs,
     isProcessing,
     error,
