@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Settings, Github, Cpu, LayoutGrid, Sliders } from 'lucide-react';
+import { Settings, LayoutGrid, Cpu, Github, Moon, Sun, Bell, Search, User } from 'lucide-react';
 import BrowserGenerator from './components/BrowserGenerator';
 import SettingsView from './components/SettingsView';
 import { AppMode, OllamaConfig } from './types';
@@ -10,6 +10,7 @@ const CONFIG_STORAGE_KEY = 'rayan_ollama_config';
 
 const App: React.FC = () => {
   const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
+  const [isDarkMode, setIsDarkMode] = useState(false);
   
   // Lifted Config State with Persistence
   const [config, setConfig] = useState<OllamaConfig>(() => {
@@ -27,109 +28,135 @@ const App: React.FC = () => {
       baseUrl: OLLAMA_DEFAULT_URL,
       model: DEFAULT_MODEL,
       embeddingModel: DEFAULT_EMBEDDING_MODEL,
-      persona: '' // Default empty persona
+      persona: ''
     };
   });
 
-  // Save config to localStorage whenever it changes
   useEffect(() => {
     localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
   }, [config]);
 
+  // Sidebar Component
+  const SidebarItem = ({ icon: Icon, label, active, onClick }: any) => (
+    <button
+      onClick={onClick}
+      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${
+        active
+          ? 'bg-brand-600 text-white shadow-lg shadow-brand-500/30'
+          : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
+      }`}
+    >
+      <Icon className={`w-5 h-5 ${active ? 'text-white' : 'text-slate-400 group-hover:text-slate-600'}`} />
+      <span className="font-bold text-sm">{label}</span>
+      {active && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-white"></div>}
+    </button>
+  );
+
   return (
-    <div className="min-h-screen flex flex-col font-sans bg-[#F0F4F8] overflow-x-hidden selection:bg-brand-200 selection:text-brand-900">
-      {/* Background Decor - Refined */}
-      <div className="fixed top-[-20%] right-[-10%] w-[800px] h-[800px] bg-brand-200/40 rounded-full mix-blend-multiply filter blur-[120px] opacity-40 animate-blob"></div>
-      <div className="fixed top-[-10%] left-[-10%] w-[600px] h-[600px] bg-accent-pink/20 rounded-full mix-blend-multiply filter blur-[100px] opacity-40 animate-blob animation-delay-2000"></div>
-      <div className="fixed bottom-[-20%] left-[20%] w-[600px] h-[600px] bg-accent-blue/20 rounded-full mix-blend-multiply filter blur-[100px] opacity-40 animate-blob animation-delay-4000"></div>
-
-      {/* Header */}
-      <header className="sticky top-0 z-50 pt-4 px-6 pb-2">
-        <div className="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-sm border border-white/60 mx-auto max-w-[1600px] px-8 h-24 flex items-center justify-between transition-all hover:shadow-md">
-          
-          {/* Logo Section */}
-          <div className="flex items-center gap-5">
-            <div className="bg-gradient-to-br from-brand-600 to-brand-800 p-3 rounded-2xl shadow-lg shadow-brand-500/30 text-white transform hover:rotate-3 transition-transform">
-              <Cpu className="w-7 h-7" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-black tracking-tighter text-slate-800 flex flex-col leading-none gap-1">
-                <span>RAYAN <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-600 to-accent-pink">HAMAFZA</span></span>
-              </h1>
-              <p className="text-[10px] text-slate-500 font-bold tracking-[0.2em] uppercase opacity-70">Intelligent Documentation</p>
-            </div>
+    <div className={`min-h-screen flex font-sans ${isDarkMode ? 'bg-[#0f172a]' : 'bg-[#F8FAFC]'} transition-colors duration-300`}>
+      {/* App Sidebar (Navigation) */}
+      <aside className={`w-20 lg:w-72 shrink-0 border-r ${isDarkMode ? 'bg-[#1e293b] border-slate-700' : 'bg-white border-slate-200'} flex flex-col z-50 sticky top-0 h-screen transition-all`}>
+        {/* Logo Area */}
+        <div className="h-20 flex items-center px-6 border-b border-transparent">
+          <div className="flex items-center gap-3">
+             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-600 to-brand-800 flex items-center justify-center text-white shadow-lg shadow-brand-500/20">
+                <Cpu className="w-6 h-6" />
+             </div>
+             <div className="hidden lg:block">
+                <h1 className="text-xl font-black text-slate-800 tracking-tight leading-none">RAYAN <span className="text-brand-600">HAMAFZA</span></h1>
+                <p className="text-[10px] text-slate-400 font-bold tracking-wider uppercase mt-0.5">Enterprise Knowledge</p>
+             </div>
           </div>
-          
-          {/* Navigation */}
-          <nav className="flex items-center bg-slate-100/50 p-2 rounded-2xl border border-white/50 backdrop-blur-sm">
-            <button
+        </div>
+
+        {/* Navigation Items */}
+        <nav className="flex-1 px-4 py-6 space-y-2">
+           <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider px-4 mb-2 hidden lg:block">Main Menu</div>
+           <SidebarItem
+              icon={LayoutGrid}
+              label="Dashboard"
+              active={mode === AppMode.DASHBOARD}
               onClick={() => setMode(AppMode.DASHBOARD)}
-              className={`flex items-center gap-2 px-8 py-3 rounded-xl text-sm font-bold transition-all duration-300 ${
-                mode === AppMode.DASHBOARD 
-                  ? 'bg-white text-brand-700 shadow-sm ring-1 ring-black/5' 
-                  : 'text-slate-500 hover:text-slate-700 hover:bg-white/40'
-              }`}
-            >
-              <LayoutGrid className="w-4 h-4" />
-              داشبورد
-            </button>
-            <button
+           />
+           <SidebarItem
+              icon={Settings}
+              label="Settings"
+              active={mode === AppMode.SETTINGS}
               onClick={() => setMode(AppMode.SETTINGS)}
-              className={`flex items-center gap-2 px-8 py-3 rounded-xl text-sm font-bold transition-all duration-300 ${
-                mode === AppMode.SETTINGS 
-                  ? 'bg-white text-brand-700 shadow-sm ring-1 ring-black/5' 
-                  : 'text-slate-500 hover:text-slate-700 hover:bg-white/40'
-              }`}
-            >
-              <Settings className="w-4 h-4" />
-              تنظیمات
-            </button>
-          </nav>
+           />
+        </nav>
 
-          {/* User/Social */}
-          <div className="flex items-center gap-4">
-             <a 
-               href="https://github.com" 
-               target="_blank" 
-               rel="noreferrer" 
-               className="p-3 rounded-2xl bg-white border border-slate-100 text-slate-500 hover:text-black hover:scale-110 transition-all shadow-sm group"
-               aria-label="View source on GitHub"
-             >
-                <Github className="w-5 h-5" />
-             </a>
-             <div className="h-12 px-6 rounded-2xl bg-gradient-to-r from-slate-800 to-slate-900 shadow-xl shadow-slate-900/20 flex items-center justify-center text-white font-bold text-sm border border-slate-700">
-                v3.0 Pro
-             </div>
-          </div>
+        {/* Bottom Actions */}
+        <div className={`p-4 border-t ${isDarkMode ? 'border-slate-700' : 'border-slate-100'}`}>
+           <a
+             href="https://github.com/rayan-ai"
+             target="_blank"
+             rel="noreferrer"
+             className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-slate-100 transition-all group"
+           >
+              <Github className="w-5 h-5 text-slate-400 group-hover:text-black" />
+              <span className="font-bold text-sm hidden lg:block">Documentation</span>
+           </a>
         </div>
-      </header>
+      </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 px-6 py-6 overflow-hidden z-10">
-        <div className="max-w-[1600px] mx-auto h-full">
-          {mode === AppMode.DASHBOARD ? (
-            <div className="h-full flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-700 ease-out">
-              <div className="flex-1 min-h-0">
-                <BrowserGenerator config={config} />
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Top Header */}
+        <header className={`h-20 shrink-0 px-8 flex items-center justify-between z-40 sticky top-0 backdrop-blur-xl border-b ${isDarkMode ? 'bg-[#0f172a]/80 border-slate-700' : 'bg-[#F8FAFC]/80 border-slate-200'}`}>
+           <div className="flex-1 max-w-xl">
+              {mode === AppMode.DASHBOARD && (
+                <div className="relative group">
+                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-brand-500 transition-colors" />
+                   <input
+                      type="text"
+                      placeholder="Search knowledge base..."
+                      className="w-full h-11 pl-11 pr-4 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all shadow-sm placeholder:text-slate-400"
+                   />
+                   <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                      <kbd className="hidden sm:inline-flex h-5 items-center gap-1 rounded border border-slate-200 bg-slate-50 px-1.5 font-mono text-[10px] font-medium text-slate-500">⌘K</kbd>
+                   </div>
+                </div>
+              )}
+           </div>
+
+           <div className="flex items-center gap-4 pl-8">
+              <button className="p-2.5 rounded-xl text-slate-500 hover:bg-white hover:shadow-sm hover:text-slate-700 transition-all relative">
+                 <Bell className="w-5 h-5" />
+                 <span className="absolute top-2 right-2.5 w-2 h-2 rounded-full bg-red-500 border-2 border-[#F8FAFC]"></span>
+              </button>
+              <div className="h-8 w-px bg-slate-200 mx-1"></div>
+              <button className="flex items-center gap-3 p-1.5 pr-4 rounded-xl hover:bg-white hover:shadow-sm transition-all border border-transparent hover:border-slate-100">
+                 <div className="w-9 h-9 rounded-full bg-gradient-to-r from-brand-500 to-accent-pink p-[2px]">
+                    <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
+                       <User className="w-5 h-5 text-slate-700" />
+                    </div>
+                 </div>
+                 <div className="text-left hidden sm:block">
+                    <div className="text-sm font-bold text-slate-700">Admin User</div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase">Team Lead</div>
+                 </div>
+              </button>
+           </div>
+        </header>
+
+        {/* Content Viewport */}
+        <main className="flex-1 overflow-hidden relative">
+           {mode === AppMode.DASHBOARD ? (
+              <div className="absolute inset-0 overflow-hidden">
+                 <BrowserGenerator config={config} />
               </div>
-            </div>
-          ) : (
-             <div className="h-full overflow-y-auto animate-in fade-in slide-in-from-bottom-8 duration-700 flex flex-col items-center custom-scrollbar">
-               <div className="mb-12 text-center relative w-full pt-10">
-                 <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 w-96 h-40 bg-brand-500/20 blur-[90px] rounded-full -z-10"></div>
-                <h2 className="text-4xl font-black text-slate-800 mb-3 tracking-tight flex items-center justify-center gap-4">
-                  <div className="p-3 bg-white rounded-2xl shadow-md"><Sliders className="w-8 h-8 text-brand-600" /></div>
-                  تنظیمات برنامه
-                </h2>
-                <p className="text-slate-500 max-w-lg mx-auto text-base leading-relaxed font-medium">
-                  پیکربندی پیشرفته موتور هوش مصنوعی و اتصال به شبکه عصبی محلی
-                </p>
+           ) : (
+              <div className="absolute inset-0 overflow-y-auto custom-scrollbar p-8">
+                 <div className="max-w-4xl mx-auto">
+                    <h2 className="text-3xl font-black text-slate-800 mb-2">Settings</h2>
+                    <p className="text-slate-500 mb-8">Configure your AI models and environment connection.</p>
+                    <SettingsView config={config} setConfig={setConfig} />
+                 </div>
               </div>
-               <SettingsView config={config} setConfig={setConfig} />
-             </div>
-          )}
-        </div>
-      </main>
+           )}
+        </main>
+      </div>
     </div>
   );
 };

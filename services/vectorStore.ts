@@ -1,177 +1,86 @@
-
 import { VectorDocument, OllamaConfig, SearchResult, ProcessedFile } from '../types';
-import { generateEmbeddings } from './ollamaService';
-import { openDB, IDBPDatabase } from 'idb';
 
-const DB_NAME = 'rayan-vector-store';
-const STORE_NAME = 'vectors';
+const BACKEND_URL = import.meta.env.VITE_API_URL || '/api'; // In production, this should be an environment variable
 
 /**
- * A persistent Vector Store for RAG, powered by IndexedDB.
- * This ensures "CodeWiki" scalability, allowing 100MB+ repositories without RAM exhaustion.
+ * A Centralized Vector Store for RAG, powered by the backend (PostgreSQL + pgvector).
+ * This replaces the client-side IndexedDB implementation.
  */
-export class LocalVectorStore {
+export class CentralVectorStore {
   private config: OllamaConfig;
-  private dbPromise: Promise<IDBPDatabase>;
-  private memoryCache: VectorDocument[] = [];
+  private apiUrl: string;
 
   constructor(config: OllamaConfig) {
     this.config = config;
-    this.dbPromise = openDB(DB_NAME, 1, {
-      upgrade(db) {
-        if (!db.objectStoreNames.contains(STORE_NAME)) {
-          const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
-          store.createIndex('filePath', 'metadata.filePath', { unique: false });
-        }
-      },
-    });
-    this.loadCache();
-  }
-
-  private async loadCache() {
-    try {
-      const db = await this.dbPromise;
-      this.memoryCache = await db.getAll(STORE_NAME, undefined, 500);
-    } catch (e) {
-      console.warn("Failed to load initial vector cache", e);
-    }
-  }
-
-  private tokenize(text: string): Set<string> {
-    const tokens = text.toLowerCase().split(/[^a-z0-9_]+/);
-    return new Set(tokens.filter(t => t.length > 2));
-  }
-
-  private splitText(text: string, chunkSize: number = 1000, overlap: number = 200): string[] {
-    const chunks: string[] = [];
-    let start = 0;
-    while (start < text.length) {
-      const end = Math.min(start + chunkSize, text.length);
-      chunks.push(text.slice(start, end));
-      start += chunkSize - overlap;
-    }
-    return chunks;
+    this.apiUrl = BACKEND_URL;
   }
 
   /**
-   * Adds processed files to the persistent store.
-   * FIX: Opens short-lived transactions per document write to avoid TransactionInactiveError
-   * caused by long-running embedding API calls.
+   * Adds processed files to the central database.
+   * Sends files in batches to avoid payload limits and server timeouts.
    */
-  async addDocuments(files: ProcessedFile[], onProgress?: (current: number, total: number) => void): Promise<void> {
-    const db = await this.dbPromise;
-    let processedCount = 0;
-    const totalFiles = files.length;
+  async addDocuments(projectId: string, files: ProcessedFile[], onProgress?: (current: number, total: number) => void): Promise<void> {
+    try {
+      const BATCH_SIZE = 20; // Send 20 files at a time
+      let processedCount = 0;
 
-    for (const file of files) {
-      const rawChunks = this.splitText(file.content);
+      for (let i = 0; i < files.length; i += BATCH_SIZE) {
+        const batch = files.slice(i, i + BATCH_SIZE);
 
-      for (let i = 0; i < rawChunks.length; i++) {
-        const chunk = rawChunks[i];
+        // Ensure metadata is serializable and not too large if needed, though processedFile structure is usually fine.
+        // We send the raw content here. The backend handles chunking and embedding.
 
-        // Validation: Skip empty chunks to prevent 400 errors from API
-        if (!chunk || chunk.trim().length === 0) continue;
-
-        const docId = `${file.path}-${i}`;
-
-        // Check if exists first (ReadOnly transaction)
-        const existing = await db.get(STORE_NAME, docId);
-        if (existing) continue;
-
-        const tokens = this.tokenize(chunk);
-
-        // Link Graph data
-        const presentSymbols = file.metadata.symbols.filter(s => chunk.includes(s.name));
-        const relatedSymbolIds = presentSymbols.map(s => s.id);
-
-        presentSymbols.forEach(s => {
-            if (s.relationships?.calledBy) {
-                relatedSymbolIds.push(...s.relationships.calledBy);
-            }
+        const response = await fetch(`${this.apiUrl}/vectors/index`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectId, documents: batch })
         });
 
-        try {
-          // 1. Long-running async call (Wait for Ollama)
-          const embedding = await generateEmbeddings(this.config, chunk);
-
-          if (!embedding || embedding.length === 0) {
-             console.warn(`Skipping empty embedding for chunk ${i} of ${file.path}`);
-             continue;
-          }
-
-          const doc: VectorDocument = {
-            id: docId,
-            content: chunk,
-            metadata: {
-              filePath: file.path,
-              startLine: i * 50,
-              relatedSymbols: relatedSymbolIds
-            },
-            embedding: embedding,
-            tokens: tokens
-          };
-
-          // 2. Open a fresh short-lived transaction ONLY for the write operation
-          const tx = db.transaction(STORE_NAME, 'readwrite');
-          await tx.objectStore(STORE_NAME).put(doc);
-          await tx.done;
-
-          if (this.memoryCache.length < 1000) this.memoryCache.push(doc);
-
-        } catch (e) {
-          console.error(`Failed to index chunk ${i} for ${file.path}:`, e);
+        if (!response.ok) {
+          throw new Error(`Failed to index batch ${i}: ${response.statusText}`);
         }
+
+        processedCount += batch.length;
+        if (onProgress) onProgress(processedCount, files.length);
       }
-      processedCount++;
-      if (onProgress) onProgress(processedCount, totalFiles);
+
+    } catch (error) {
+      console.error('Error adding documents to central store:', error);
+      throw error;
     }
   }
 
-  private cosineSimilarity(vecA: number[], vecB: number[]): number {
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-    for (let i = 0; i < vecA.length; i++) {
-      dotProduct += vecA[i] * vecB[i];
-      normA += vecA[i] * vecA[i];
-      normB += vecB[i] * vecB[i];
-    }
-    const magnitude = Math.sqrt(normA) * Math.sqrt(normB);
-    return magnitude === 0 ? 0 : dotProduct / magnitude;
-  }
-
-  async similaritySearch(query: string, k: number = 4): Promise<VectorDocument[]> {
-    const db = await this.dbPromise;
-    // Note: For massive DBs, use a better retrieval strategy (e.g., keyword filtering before vector scoring)
-    const allDocs = await db.getAll(STORE_NAME);
-
-    if (allDocs.length === 0) return [];
-
-    const queryEmbedding = await generateEmbeddings(this.config, query);
-    const queryTokens = this.tokenize(query);
-
-    const results: SearchResult[] = allDocs.map(doc => {
-      let vectorScore = 0;
-      if (doc.embedding) {
-        vectorScore = this.cosineSimilarity(queryEmbedding, doc.embedding);
-      }
-      let keywordMatches = 0;
-
-      // Handle cases where tokens might not be a Set after being retrieved from IDB
-      const docTokens = doc.tokens instanceof Set ? doc.tokens : new Set(Array.from(doc.tokens || []));
-
-      queryTokens.forEach(token => {
-        if (docTokens.has(token)) keywordMatches++;
+  /**
+   * Performs a similarity search on the central database.
+   */
+  async search(projectId: string, query: string, topK: number = 5): Promise<VectorDocument[]> {
+    try {
+      const response = await fetch(`${this.apiUrl}/rag/search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, query, topK })
       });
-      const keywordScore = queryTokens.size > 0 ? keywordMatches / queryTokens.size : 0;
 
-      // Weighting: 70% Vector, 30% Keyword
-      const finalScore = (vectorScore * 0.7) + (keywordScore * 0.3);
+      if (!response.ok) {
+         throw new Error(`Search failed: ${response.statusText}`);
+      }
 
-      return { doc, score: finalScore, matchType: keywordScore > 0.5 ? 'keyword' : 'vector' };
-    });
+      const results = await response.json();
 
-    results.sort((a, b) => b.score - a.score);
-    return results.slice(0, k).map(r => r.doc);
+      // Map backend results to VectorDocument format
+      // Backend returns rows: { id, content, metadata, score }
+      return results.map((row: any) => ({
+        id: row.id.toString(),
+        content: row.content,
+        metadata: row.metadata,
+        // We don't get tokens or full embedding back usually, but that's fine for RAG context
+      }));
+
+    } catch (error) {
+      console.error('Error searching central store:', error);
+      return [];
+    }
   }
 }
+
+export { CentralVectorStore as LocalVectorStore };

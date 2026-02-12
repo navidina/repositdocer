@@ -15,8 +15,9 @@ export const useChat = (
     config: OllamaConfig, 
     vectorStoreRef: React.MutableRefObject<LocalVectorStore | null>, 
     hasContext: boolean,
-    knowledgeGraph: Record<string, CodeSymbol>, // Now received as Prop
-    docParts: Record<string, string>            // Now received as Prop
+    knowledgeGraph: Record<string, CodeSymbol>,
+    docParts: Record<string, string>,
+    projectId: string // Added prop
 ) => {
   
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
@@ -47,10 +48,9 @@ export const useChat = (
     try {
       let contextSegments: string[] = [];
       
-      // 1. GLOBAL CONTEXT INJECTION (Fix for "I don't know the project")
-      // If we have generated README/Architecture, always inject a summary.
+      // 1. GLOBAL CONTEXT INJECTION
       if (docParts.root) {
-          const summary = docParts.root.substring(0, 2000); // Limit size
+          const summary = docParts.root.substring(0, 2000);
           contextSegments.push(`*** PROJECT OVERVIEW (README) ***\n${summary}`);
       }
       if (docParts.arch) {
@@ -58,13 +58,10 @@ export const useChat = (
           contextSegments.push(`*** ARCHITECTURE SUMMARY ***\n${archSum}`);
       }
 
-      // 2. SYMBOL SNIFFING (Fix for "DataListService doesn't exist")
-      // Scan user text for known symbols in the Knowledge Graph and inject them directly.
+      // 2. SYMBOL SNIFFING
       if (knowledgeGraph && Object.keys(knowledgeGraph).length > 0) {
           const knownNames = Object.values(knowledgeGraph);
           const matchedSymbols = knownNames.filter(sym => 
-              // Simple check: does the user question contain the symbol name?
-              // Filter out short common words to avoid noise (e.g., "id", "map")
               sym.name.length > 3 && userText.includes(sym.name)
           );
 
@@ -77,23 +74,28 @@ export const useChat = (
       }
 
       // 3. VECTOR RETRIEVAL (RAG)
-      if (hasContext && vectorStoreRef.current) {
+      // Updated to use server-side search via projectId
+      if (hasContext && vectorStoreRef.current && projectId) {
          setIsRetrieving(true);
-         const relevantDocs = await vectorStoreRef.current.similaritySearch(userText, 5);
+         try {
+             // New API: search(projectId, query, k)
+             const relevantDocs = await vectorStoreRef.current.search(projectId, userText, 5);
 
-         const vectorChunks = relevantDocs.map(d => {
-            return `FILEPATH: ${d.metadata.filePath}\nCONTENT:\n\`\`\`\n${d.content}\n\`\`\``;
-         }).join('\n\n----------------\n\n');
+             const vectorChunks = relevantDocs.map(d => {
+                return `FILEPATH: ${d.metadata.filePath}\nCONTENT:\n\`\`\`\n${d.content}\n\`\`\``;
+             }).join('\n\n----------------\n\n');
 
-         if (vectorChunks) {
-             contextSegments.push(`*** RETRIEVED SIMILAR CHUNKS ***\n${vectorChunks}`);
+             if (vectorChunks) {
+                 contextSegments.push(`*** RETRIEVED SIMILAR CHUNKS ***\n${vectorChunks}`);
+             }
+         } catch (e) {
+             console.error("RAG Search failed", e);
          }
          setIsRetrieving(false);
       }
 
       const fullContext = contextSegments.join('\n\n================================\n\n');
 
-      // STRICT CONTEXT PROMPT
       const systemMessage: ChatMessage = { 
          role: 'system', 
          content: `You are 'Rayan', a Senior Code Assistant dedicated to THIS specific project.
@@ -115,8 +117,9 @@ export const useChat = (
       const responseContent = await sendChatRequest(config, messagesToSend);
       setChatMessages(prev => [...prev, { role: 'assistant', content: responseContent }]);
     } catch (error) {
+      console.error(error);
       setIsRetrieving(false);
-      setChatMessages(prev => [...prev, { role: 'assistant', content: '**خطا در ارتباط.**' }]);
+      setChatMessages(prev => [...prev, { role: 'assistant', content: '**خطا در ارتباط با سرور.**' }]);
     } finally {
       setIsChatLoading(false);
     }

@@ -432,14 +432,15 @@ const BrowserGenerator: React.FC<BrowserGeneratorProps> = ({ config }) => {
   const vectorStoreRef = useRef<LocalVectorStore | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
-  const { logs, isProcessing, error, dismissError, progress, generatedDoc, hasContext, processRepository, stats, knowledgeGraph, docParts, businessRules, archViolations, zombieFiles, currentFile, saveManualOverride, fileMap, reanalyzeFile, importSession } = useRepoProcessor();
+  const { logs, isProcessing, error, dismissError, progress, generatedDoc, hasContext, processRepository, stats, knowledgeGraph, docParts, businessRules, archViolations, zombieFiles, currentFile, saveManualOverride, fileMap, reanalyzeFile, importSession, projectId } = useRepoProcessor();
   
   const { chatMessages, chatInput, setChatInput, isChatLoading, isRetrieving, handleSendMessage } = useChat(
       config, 
       vectorStoreRef, 
       hasContext, 
       knowledgeGraph, 
-      docParts
+      docParts,
+      projectId
   );
 
   useEffect(() => {
@@ -672,7 +673,7 @@ const BrowserGenerator: React.FC<BrowserGeneratorProps> = ({ config }) => {
   );
 
   return (
-    <div className="flex h-[calc(100vh-140px)] bg-slate-100/50 overflow-hidden rounded-[2.5rem] shadow-glass border border-white/60 relative mx-4 mb-4 backdrop-blur-xl">
+    <div className="flex h-full bg-slate-100/50 overflow-hidden rounded-[2.5rem] shadow-glass border border-white/60 relative mx-4 mb-4 backdrop-blur-xl">
         {/* Hidden Import Input */}
         <input 
           type="file" 
