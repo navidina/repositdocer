@@ -18,10 +18,8 @@ export const askQuestion = async (req: Request, res: Response) => {
     const embeddingStr = `[${embedding.join(',')}]`;
 
     // 2. Search in Vector DB (pgvector)
-    const client = await pool.connect();
-
-    // Use HNSW index (via <=> operator)
-    const result = await client.query(
+    // Use pool.query directly to handle connection release automatically
+    const result = await pool.query(
       `SELECT file_path, content, 1 - (embedding <=> $1) as score
        FROM documents
        WHERE project_id = $2
@@ -29,7 +27,6 @@ export const askQuestion = async (req: Request, res: Response) => {
        LIMIT $3`,
       [embeddingStr, projectId, topK]
     );
-    client.release();
 
     if (result.rows.length === 0) {
       return res.json({
