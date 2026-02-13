@@ -1,95 +1,149 @@
-
 # Rayan HamAfza Docs (رایان هم‌افزا مستندات)
 
-**Intelligent Documentation Generator & Code Analysis Tool powered by Local LLMs (Ollama)**
+**پلتفرم مستندسازی هوشمند و پایگاه دانش تیمی (نسخه Enterprise)**
 
-Rayan HamAfza Docs is a modern React application designed to automatically generate comprehensive technical documentation for your software projects. It leverages local Large Language Models (LLMs) via Ollama to ensure data privacy and zero cost. Beyond simple documentation, it constructs a Knowledge Graph of your code, analyzes architecture, detects "Zombie Code", and provides a RAG-based chat interface to answer questions about your codebase.
+این پروژه یک سیستم پیشرفته برای تولید خودکار مستندات فنی، تحلیل کد و چت با دیتابیس کد (RAG) است که برای استفاده در تیم‌های نرم‌افزاری طراحی شده است. نسخه جدید این سیستم از معماری **Client-Server** استفاده می‌کند تا دانش استخراج شده از کد را در یک پایگاه داده مرکزی ذخیره کرده و در اختیار تمام اعضای تیم قرار دهد.
 
-![Rayan Docs Interface](https://via.placeholder.com/800x400?text=Rayan+Docs+Dashboard)
+![Rayan Docs Architecture](https://via.placeholder.com/800x400?text=Client-Server+Architecture)
 
-## Features
+## ویژگی‌های جدید (Team-First Architecture)
 
-*   **Local Processing:** Runs entirely in your browser using local Ollama models. Your code never leaves your machine.
-*   **Semantic Analysis:** parses code to understand classes, functions, and relationships.
-*   **Knowledge Graph:** Visualizes dependencies between files and symbols.
-*   **Architecture Analysis:** Detects architectural violations (e.g., UI directly accessing Database) and "Zombie" (dead) code.
-*   **Automated Diagrams:** Generates Mermaid.js diagrams automatically:
-    *   Entity Relationship Diagrams (ERD)
-    *   Sequence Diagrams
-    *   Class Diagrams
-    *   Data Flow Diagrams
-    *   User Journey & Use Cases
-*   **RAG Chat:** Chat with your codebase using Retrieval-Augmented Generation.
-*   **Playground:** Integrated JavaScript playground to test pure functions extracted from your code.
+*   **معماری کلاینت-سرور:** پردازش سنگین وکتورها و ذخیره‌سازی داده‌ها در سرور مرکزی انجام می‌شود.
+*   **پایگاه دانش مرکزی (PostgreSQL + pgvector):** تمام مستندات، گراف وابستگی‌ها و وکتورهای معنایی در دیتابیس ذخیره می‌شوند.
+*   **اشتراک‌گذاری دانش:** یک نفر پروژه را اسکن می‌کند و بقیه اعضای تیم بلافاصله به مستندات و چت‌بات دسترسی دارند.
+*   **جستجوی معنایی (Semantic Search):** استفاده از مدل‌های پیشرفته Embedding برای یافتن دقیق‌ترین پاسخ‌ها به سوالات فنی.
+*   **تحلیل خودکار:** تشخیص کدهای مرده (Zombie Code)، بررسی معماری و تولید نمودارهای Mermaid.
+*   **API یکپارچه‌سازی (Integration API):** سرویس پرسش و پاسخ هوشمند برای اتصال به سایر نرم‌افزارهای سازمان.
 
-## Prerequisites
+---
 
-1.  **Node.js**: Version 18 or higher.
-2.  **Ollama**: You must have Ollama installed and running locally.
-    *   [Download Ollama](https://ollama.com/)
-    *   **Models**: Pull a coding model and an embedding model.
-        ```bash
-        ollama pull qwen2.5-coder:14b
-        ollama pull jina/jina-embeddings-v2-base-en
-        ```
+## پیش‌نیازها
 
-## Installation
+برای اجرای این پروژه به موارد زیر نیاز دارید:
 
-1.  Clone the repository:
+1.  **Node.js**: نسخه 18 یا بالاتر.
+2.  **PostgreSQL**: نسخه 15 یا بالاتر با افزونه **`pgvector`**.
+    *   (نصب pgvector: [راهنمای رسمی](https://github.com/pgvector/pgvector))
+3.  **Ollama**: برای اجرای مدل‌های هوش مصنوعی (LLM) به صورت محلی.
+    *   [دانلود Ollama](https://ollama.com/)
+
+---
+
+## راهنمای نصب و راه‌اندازی
+
+### ۱. پیکربندی Ollama (سرور هوش مصنوعی)
+
+برای اینکه سرور و کلاینت‌ها بتوانند به Ollama متصل شوند، باید آن را در شبکه در دسترس قرار دهید:
+
+1.  Ollama را اجرا کنید:
     ```bash
-    git clone https://github.com/your-repo/rayan-docs.git
-    cd rayan-docs
+    OLLAMA_HOST=0.0.0.0 ollama serve
+    ```
+2.  مدل‌های مورد نیاز را دانلود کنید:
+    ```bash
+    ollama pull qwen2.5-coder:32b-instruct
+    ollama pull nomic-embed-text
     ```
 
-2.  Install dependencies:
+### ۲. راه‌اندازی دیتابیس (PostgreSQL)
+
+1.  یک دیتابیس جدید بسازید (مثلاً `codewiki`).
+2.  افزونه `vector` را فعال کنید و جداول را بسازید. می‌توانید از فایل `server/migrations/schema.sql` استفاده کنید:
+    ```sql
+    psql -d codewiki -f server/migrations/schema.sql
+    ```
+
+### ۳. راه‌اندازی بک‌اند (Backend)
+
+بک‌اند وظیفه ارتباط با دیتابیس و پردازش درخواست‌های چت و اسکن را بر عهده دارد.
+
+1.  وارد پوشه سرور شوید:
+    ```bash
+    cd server
+    ```
+2.  وابستگی‌ها را نصب کنید:
     ```bash
     npm install
     ```
-
-3.  Start the development server:
+3.  فایل `.env` را بر اساس نمونه زیر بسازید:
+    ```env
+    PORT=3000
+    DB_HOST=localhost
+    DB_PORT=5432
+    DB_USER=postgres
+    DB_PASSWORD=yourpassword
+    DB_NAME=codewiki
+    OLLAMA_HOST=http://localhost:11434
+    INTEGRATION_API_KEY=my_secure_secret_key
+    ```
+4.  سرور را اجرا کنید:
     ```bash
-    npm start
+    npm run dev
     ```
 
-## Usage
+### ۴. راه‌اندازی فرانت‌اند (Frontend)
 
-### 1. Configure Ollama
-Once the app is running (usually at `http://localhost:3000`), go to the **Settings** tab.
-*   **Base URL**: Default is `http://localhost:11434`. Ensure Ollama is running with `ollama serve`.
-*   **Models**: Enter the names of the models you pulled (e.g., `qwen2.5-coder:14b`).
-*   **Persona**: Optionally define a persona (e.g., "Senior Security Engineer") to tailor the analysis.
+رابط کاربری React برای کاربران.
 
-### 2. Analyze a Project
-Go to the **Dashboard**:
-*   **Local Folder**: Click "Choose Files" and select your project's root folder.
-*   **GitHub**: (Experimental) Enter a public `username/repo` URL.
-*   Click **"Start Analysis"**.
+1.  در پوشه اصلی پروژه (روت):
+    ```bash
+    npm install
+    ```
+2.  برنامه را اجرا کنید:
+    ```bash
+    npm run dev
+    ```
+3.  برنامه در آدرس `http://localhost:5173` در دسترس خواهد بود.
 
-### 3. Explore Documentation
-Once processing is complete, navigate via the sidebar:
-*   **Dashboard**: High-level stats, health check, and graph visualization.
-*   **Architecture**: System design analysis.
-*   **Code Analysis**: Detailed breakdown of every file with docstrings.
-*   **Diagrams**: View auto-generated system diagrams.
-*   **Chat**: Ask questions like "How does the authentication flow work?".
+---
 
-## Architecture Overview
+## مستندات API (Swagger)
 
-The application is built with:
-*   **Frontend**: React, TypeScript, Tailwind CSS.
-*   **State Management**: React Hooks (Custom `useRepoProcessor`).
-*   **Parsing**: Custom Regex-based tokenizer & Semantic Parser (`services/codeParser.ts`).
-*   **Vector DB**: In-memory `LocalVectorStore` for RAG operations.
-*   **LLM Integration**: Direct fetch calls to local Ollama API.
+برای مشاهده و تست زنده APIهای سرور، بعد از اجرای بک‌اند به آدرس زیر بروید:
 
-## Troubleshooting
+👉 **`http://localhost:3000/api-docs`**
 
-*   **CORS Errors**: If Ollama blocks the request, you may need to set the environment variable `OLLAMA_ORIGINS="*"`.
-    *   Linux/Mac: `launchctl setenv OLLAMA_ORIGINS "*"` or run `OLLAMA_ORIGINS="*" ollama serve`.
-    *   Windows: Set system environment variable.
-*   **Slow Generation**: Use a smaller model (e.g., `qwen2.5-coder:7b`) or ensure you have GPU acceleration enabled in Ollama.
+در این صفحه می‌توانید با وارد کردن `x-api-key` سرویس‌های پرسش و پاسخ را تست کنید.
 
-## License
+---
 
-MIT
-"# repositdocer" 
+## نکات حرفه‌ای (Pro Tips)
+
+### ۱. تنظیم Timeout کلاینت‌ها
+پاسخ‌دهی مدل‌های هوش مصنوعی (LLM) ممکن است زمان‌بر باشد (۱۰ تا ۳۰ ثانیه). اگر از API یکپارچه‌سازی (`/v1/ask`) در سایر برنامه‌های خود استفاده می‌کنید، حتماً **Timeout درخواست‌های HTTP را حداقل روی ۶۰ ثانیه تنظیم کنید**.
+
+### ۲. امنیت API Key
+کلید `INTEGRATION_API_KEY` را حتماً در فایل `.env` سرور تعریف کنید. اگر این کلید ست نشده باشد، سرور هشداری در کنسول چاپ می‌کند و تمام درخواست‌های Integration API را رد خواهد کرد.
+
+---
+
+## نحوه استفاده (کاربران)
+
+### ۱. تنظیمات اولیه
+*   به تب **تنظیمات** بروید.
+*   آدرس سرور Ollama را وارد کنید (مثلاً `http://192.168.1.100:11434`).
+*   اتصال را تست کنید.
+
+### ۲. اسکن پروژه (توسط مدیر فنی)
+*   در داشبورد، پوشه پروژه مورد نظر را انتخاب کنید.
+*   دکمه **شروع تحلیل هوشمند** را بزنید.
+*   سیستم کدها را پردازش کرده، به سرور می‌فرستد و در دیتابیس ذخیره می‌کند.
+
+### ۳. استفاده تیمی
+*   سایر اعضای تیم کافیست وارد لینک برنامه شوند.
+*   با انتخاب پروژه از لیست (یا اشتراک‌گذاری لینک دارای `project_id`)، مستندات **بدون نیاز به پردازش مجدد** لود می‌شوند.
+*   می‌توانید با چت‌بات در مورد کل پروژه صحبت کنید.
+
+---
+
+## تکنولوژی‌های استفاده شده
+
+*   **Backend:** Node.js, Express, TypeScript, Swagger
+*   **Database:** PostgreSQL, pgvector
+*   **Frontend:** React, Vite, Tailwind CSS, Lucide Icons
+*   **AI Engine:** Ollama (Local LLMs), LangChain concepts
+*   **Visualization:** Mermaid.js, React Force Graph
+
+## لایسنس
+
+MIT License - استفاده برای مقاصد آموزشی و تجاری آزاد است.
